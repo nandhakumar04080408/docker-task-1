@@ -2,59 +2,58 @@ pipeline {
     agent any
 
     environment {
-        // Change these to your actual Docker Hub details
-        DOCKER_USER = "nandha0408"
-        IMAGE_NAME  = "webstatus"
-        REGISTRY_ID = "docker"
+        DOCKERHUB_USER = "nandha0408"
+        IMAGE_NAME = "webstatus"
+        IMAGE_TAG = "latest"
     }
 
     stages {
-        stage('Build') {
+
+        stage('Checkout') {
             steps {
-                script {
-                    // Builds the image using the Dockerfile we just wrote
-                    customImage = docker.build("${DOCKER_USER}/${IMAGE_NAME}:${env.BUILD_ID}")
+                git 'https://github.com/nandhakumar04080408/docker-task-1.git'
+            }
+        }
 
-                    //Stop and remove the old container if it exists
-                    sh "docker stop ${IMAGE_NAME} || true"
-                    sh "docker rm ${IMAGE_NAME} || true"
+        stage('Build Image') {
+            steps {
+                sh '''
+                  docker build -t $DOCKERHUB_USER/$IMAGE_NAME:$IMAGE_TAG .
+                '''
+            }
+        }
 
-                    // 2. Run the new image indefinitely in detached mode
-                    // We map host port 8085 to container port 80
-                    sh "docker run -d --name ${IMAGE_NAME} -p 8085:80 ${DOCKER_USER}/${IMAGE_NAME}:latest"
+        stage('Docker Login') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                      echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                    '''
                 }
             }
         }
 
-        stage('Test Run') {
+        stage('Push Image') {
             steps {
-                script {
-                    // This runs the container, checks if port 80 is responsive, then stops it
-                    customImage.withRun('-p 8081:80') { c ->
-                        sh "sleep 5" // Wait for Nginx to initialize
-                        sh "curl http://localhost:8081 | grep 'Online'"
-                    }
-                }
+                sh '''
+                  docker push $DOCKERHUB_USER/$IMAGE_NAME:$IMAGE_TAG
+                '''
             }
         }
 
-        stage('Push') {
+        stage('Run Container') {
             steps {
-                script {
-                    docker.withRegistry('', REGISTRY_ID) {
-                        customImage.push("${env.BUILD_ID}")
-                        customImage.push("latest")
-                    }
-                }
-            }
-        }
-
-        stage('Cleanup') {
-            steps {
-                // Removes the local image to save disk space on your HP Victus
-                sh "docker rmi ${DOCKER_USER}/${IMAGE_NAME}:${env.BUILD_ID}"
-                sh "docker rmi ${DOCKER_USER}/${IMAGE_NAME}:latest"
+                sh '''
+                  docker stop webstatus || true
+                  docker rm webstatus || true
+                  docker run -d --name webstatus -p 8085:3000 $DOCKERHUB_USER/$IMAGE_NAME:$IMAGE_TAG
+                '''
             }
         }
     }
 }
+
