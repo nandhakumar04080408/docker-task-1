@@ -11,16 +11,13 @@ pipeline {
 
         stage('Checkout Code') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/nandhakumar04080408/docker-task-1.git'
+                checkout scm
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh '''
-                    docker build -t $DOCKERHUB_USER/$IMAGE_NAME:$IMAGE_TAG .
-                '''
+                sh 'docker build -t $DOCKERHUB_USER/$IMAGE_NAME:$IMAGE_TAG .'
             }
         }
 
@@ -31,18 +28,14 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    sh '''
-                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                    '''
+                    sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
                 }
             }
         }
 
         stage('Push Image to Docker Hub') {
             steps {
-                sh '''
-                    docker push $DOCKERHUB_USER/$IMAGE_NAME:$IMAGE_TAG
-                '''
+                sh 'docker push $DOCKERHUB_USER/$IMAGE_NAME:$IMAGE_TAG'
             }
         }
 
@@ -51,10 +44,7 @@ pipeline {
                 sh '''
                     docker stop webstatus || true
                     docker rm webstatus || true
-                    docker run -d \
-                      --name webstatus \
-                      -p 8085:3000 \
-                      $DOCKERHUB_USER/$IMAGE_NAME:$IMAGE_TAG
+                    docker run -d --name webstatus -p 8085:3000 $DOCKERHUB_USER/$IMAGE_NAME:$IMAGE_TAG
                 '''
             }
         }
