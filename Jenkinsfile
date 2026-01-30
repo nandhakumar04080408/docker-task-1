@@ -3,27 +3,28 @@ pipeline {
 
     environment {
         DOCKERHUB_USER = "nandha0408"
-        IMAGE_NAME = "webstatus"
-        IMAGE_TAG = "latest"
+        IMAGE_NAME     = "webstatus"
+        IMAGE_TAG      = "latest"
     }
 
     stages {
 
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
-                git 'https://github.com/nandhakumar04080408/docker-task-1.git'
+                git branch: 'main',
+                    url: 'https://github.com/nandhakumar04080408/docker-task-1.git'
             }
         }
 
-        stage('Build Image') {
+        stage('Build Docker Image') {
             steps {
                 sh '''
-                  docker build -t $DOCKERHUB_USER/$IMAGE_NAME:$IMAGE_TAG .
+                    docker build -t $DOCKERHUB_USER/$IMAGE_NAME:$IMAGE_TAG .
                 '''
             }
         }
 
-        stage('Docker Login') {
+        stage('Docker Hub Login') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'dockerhub-creds',
@@ -31,16 +32,16 @@ pipeline {
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     sh '''
-                      echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                     '''
                 }
             }
         }
 
-        stage('Push Image') {
+        stage('Push Image to Docker Hub') {
             steps {
                 sh '''
-                  docker push $DOCKERHUB_USER/$IMAGE_NAME:$IMAGE_TAG
+                    docker push $DOCKERHUB_USER/$IMAGE_NAME:$IMAGE_TAG
                 '''
             }
         }
@@ -48,12 +49,23 @@ pipeline {
         stage('Run Container') {
             steps {
                 sh '''
-                  docker stop webstatus || true
-                  docker rm webstatus || true
-                  docker run -d --name webstatus -p 8085:3000 $DOCKERHUB_USER/$IMAGE_NAME:$IMAGE_TAG
+                    docker stop webstatus || true
+                    docker rm webstatus || true
+                    docker run -d \
+                      --name webstatus \
+                      -p 8085:3000 \
+                      $DOCKERHUB_USER/$IMAGE_NAME:$IMAGE_TAG
                 '''
             }
         }
     }
-}
 
+    post {
+        success {
+            echo '✅ CI/CD pipeline completed successfully!'
+        }
+        failure {
+            echo '❌ Pipeline failed. Check logs.'
+        }
+    }
+}
